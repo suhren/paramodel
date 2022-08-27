@@ -1,5 +1,11 @@
-# FreeCad backuo files
+# Output files
+output
+
+# FreeCad backup files
 *.FCStd1
+
+# vscode
+.vscode
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

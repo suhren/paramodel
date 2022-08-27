@@ -6,7 +6,9 @@ import json
 import logging
 import textwrap
 import argparse
+import platform
 import typing as t
+
 
 logging.basicConfig(
     format="%(asctime)s %(message)s",
@@ -16,11 +18,41 @@ logging.basicConfig(
 
 # Path to the FreeCAD libraries
 # Change this depending on your installation or if you use Windows/Linux
-FREECAD_PATH = "C:/Program Files/FreeCAD 0.20/bin"
-sys.path.append(FREECAD_PATH)
+FREECAD_PATH_LINUX = "/usr/lib/freecad/lib"
+FREECAD_PATH_WINDOWS = "C:/Program Files/FreeCAD 0.20/bin"
+
+system = platform.system()
+
+if system == "Linux":
+    logging.debug("Loading Linux FreeCAD library")
+    sys.path.append(FREECAD_PATH_LINUX)
+elif system == "Windows":
+    logging.debug("Loading Windows FreeCAD library")
+    sys.path.append(FREECAD_PATH_WINDOWS)
+else:
+    raise Exception(f"Unknown operating system: ''{system}")
+
 
 import FreeCAD
 import Mesh
+
+
+def get_parameters(doc: t.Union[str, FreeCAD.Document]):
+    if not isinstance(doc, FreeCAD.Document):
+        doc = FreeCAD.open(doc)
+
+    sheet = doc.getObject("Spreadsheet")
+
+    # Messy "hack" to get the available aliases in the Spreadsheet?
+    # Might there be a better way?
+    available_parameters = {}
+    for line in sheet.cells.Content.splitlines():
+        alias = re.findall(r'alias="(\S+)"', line)
+        content = re.findall(r'content="(\S+)"', line)
+        if alias and content:
+            available_parameters[alias[0]] = content[0]
+
+    return available_parameters
 
 
 def generate_mesh(
@@ -44,23 +76,21 @@ def generate_mesh(
 
     # Messy "hack" to get the available aliases in the Spreadsheet?
     # Might there be a better way?
-    available_parameters = {}
-    for line in sheet.cells.Content.splitlines():
-        alias = re.findall(r'alias="(\S+)"', line)
-        content = re.findall(r'content="(\S+)"', line)
-        if alias and content:
-            available_parameters[alias[0]] = content[0]
+    available_parameters = get_parameters(doc=doc)
 
     logging.debug(f"Found default parameters {available_parameters}")
 
-    if not set(parameters).issubset(available_parameters):
-        raise Exception(
-            f"Recieved the parameters {parameters}, but found only the "
-            f"parameters {available_parameters} exist in the input file."
-        )
-
     # Set the parameters if specified
     if parameters:
+        # Filter out None values
+        parameters = {k: v for k, v in parameters.items() if v is not None}
+
+        if not set(parameters).issubset(available_parameters):
+            raise Exception(
+                f"Recieved the parameters {parameters}, but found only the "
+                f"parameters {available_parameters} exist in the input file."
+            )
+
         # The spreadsheet object only accepts string values
         parameters = {k: str(v) for k, v in parameters.items()}
 
@@ -69,14 +99,14 @@ def generate_mesh(
             sheet.set(parameter_name, value)
 
         new_parameters = {**available_parameters, **parameters}
-        logging.debug(f"Recomputing with updated parameters {new_parameters}")
+        logging.debug(f"Recomputing  with updated parameters {new_parameters}")
 
         recompute_code = doc.recompute()
         # If the document is still touched, something went wrong with the
         # recompute and there are changes that did not go through
         if doc.isTouched():
             raise Exception(
-                f"Could not recompute the document after updating parameters. "
+                "Could not recompute the document after updating parameters. "
                 f"The recompute operation returned the code {recompute_code}. "
                 f"Make sure that the parameters are valid: {new_parameters}"
             )
@@ -89,7 +119,6 @@ def generate_mesh(
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(
         description=textwrap.dedent(
             """\
@@ -143,7 +172,11 @@ if __name__ == "__main__":
         ),
     )
 
-    parser.add_argument("-p", "--parameters", type=json.loads, required=False,
+    parser.add_argument(
+        "-p",
+        "--parameters",
+        type=json.loads,
+        required=False,
         help=textwrap.dedent(
             """\
             JSON string used to override existing Spreadsheet parameters.
@@ -158,5 +191,5 @@ if __name__ == "__main__":
     generate_mesh(
         input_path=args.input_path,
         output_path=args.output_path,
-        parameters=args.parameters
+        parameters=args.parameters,
     )

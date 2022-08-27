@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Generate parametric models</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/pot_generator_service.css') }}">
+</head>
+
+<body>
+
+    <div class="content">
+
+        <h2>Select model</h2>
+
+        <form action="{{ url_for('submit_model') }}" method="post">
+            <label for="select_models">Model:</label>
+            <select name="select_models" id="select_models">
+                {% for model in available_models %}
+                    {% if model == selected_model %}
+                        <option value="{{model}}" selected>{{model}}</option>
+                    {% else %}
+                        <option value="{{model}}">{{model}}</option>
+                    {% endif %}
+                {% endfor %}
+            </select>
+            <br>
+            <input type="submit" value="Select model">
+        </form>
+
+        <br>
+
+        <h2>Select parameters for {{selected_model}}</h2>
+
+        <form action="{{ url_for('submit_parameters') }}" method="post">
+
+            <input type="hidden" name="selected_model" value="{{selected_model}}" readonly>
+
+            {% for k, v in selected_parameters.items() %}
+                <label for="{{k}}">{{k}}:</label>
+                <input type="text" name="{{k}}" id="{{k}}" value="{{v}}">
+                <br>
+            {% endfor %}
+
+            <input type="submit" value="Generate {{selected_model}}">
+        </form>
+
+        <br>
+
+        {% if download_link is not none %}
+            <h3>Download</h3>
+            <a href="{{download_link}}">{{download_text}}</a>
+            <br><br>
+        {% endif %}
+
+        <h3>Output</h3>
+        <textarea readonly rows="4">{{message}}</textarea>
+
+    </div>
+
+</body>
+
+</html>
