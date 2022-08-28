@@ -1,17 +1,17 @@
-from dataclasses import dataclass
 import logging
 import json
 import os
 import hashlib
+import typing as t
 
 import flask
+import pydantic
 
-from generation.freecad import generate_mesh, get_parameters
+from generation import freecad
 
-@dataclass
-class CadModel:
-    path: str
-    parameters: str
+# Custom Exceptions
+class InvalidModelException(Exception):
+    pass
 
 
 # Local directory paths
@@ -22,11 +22,12 @@ STATIC_DIR = "app/static"
 
 # Server connection configuration
 HOST = "0.0.0.0"
-PORT = 8080
+PORT = 80
 
 # Global variables holding information about available models
-MODELS = {}
-MODEL_NAMES = []
+MODEL_PARAMS = {}
+MODEL_PATHS = {}
+MODELS = []
 
 app = flask.Flask(
     import_name=__name__,
@@ -45,19 +46,17 @@ def initialize_models():
         path = os.path.join(CAD_MODEL_DIR, file_name)
         logging.info(f"Found model {model_name} at path {path}")
         logging.info(f"Reading parameters from {path}")
-        parameters = get_parameters(path)
-        MODELS[model_name] = CadModel(path=path, parameters=parameters)
-        MODEL_NAMES.append(model_name)
+        parameters = freecad.get_parameters(path)
+        MODEL_PARAMS[model_name] = parameters
+        MODEL_PATHS[model_name] = path
+        MODELS.append(model_name)
 
-    logging.info(f"Done initializing {len(MODELS)} models: {MODEL_NAMES}")
+    logging.info(f"Done initializing {len(MODELS)} models: {MODELS}")
 
 
-def generate_pot(
-    model: str,
-    parameters: dict,
-):
-    if model not in MODEL_NAMES:
-        raise Exception(f"Got '{model}', but expected one of {MODEL_NAMES}")
+def generate_pot(model: str, parameters: dict):
+    if model not in MODELS:
+        raise InvalidModelException(f"Input '{model}' must be one of {MODELS}")
 
     param_str = json.dumps(parameters, sort_keys=True).encode()
     param_hash = hashlib.sha256(param_str).hexdigest()[:8]
@@ -65,8 +64,8 @@ def generate_pot(
 
     output_path = f"{OUTPUT_DIR}/{model}_{param_hash}.stl"
 
-    generate_mesh(
-        input_path=MODELS[model].path,
+    freecad.generate_mesh(
+        input_path=MODEL_PATHS[model],
         output_path=output_path,
         parameters=parameters,
     )
@@ -74,9 +73,9 @@ def generate_pot(
     return output_path
 
 
-def render(**kwargs):
+def render(**kwargs: t.Any):
     variables = dict(
-        available_models=MODEL_NAMES,
+        available_models=MODELS,
         selected_model=None,
         selected_parameters=None,
         download_link=None,
@@ -88,7 +87,7 @@ def render(**kwargs):
 
 
 @app.route("/download/<filename>", methods=["GET", "POST"])
-def download(filename):
+def download(filename: str):
     logging.info(f"Recieved download request for {filename}")
 
     return flask.send_from_directory(
@@ -100,8 +99,8 @@ def download(filename):
 
 @app.route("/", methods=["GET"])
 def index():
-    selected_model = MODEL_NAMES[0]
-    selected_parameters = MODELS[selected_model].parameters
+    selected_model = MODELS[0]
+    selected_parameters = MODEL_PARAMS[selected_model]
     return render(
         selected_model=selected_model,
         selected_parameters=selected_parameters,
@@ -144,23 +143,60 @@ def submit_parameters():
     )
 
 
-@app.route("/api/generate", methods=["GET", "POST"])
-def generate():
-    try:
-        json = flask.request.json
-        model = json["model"]
-        parameters = json.get("parameters", {})
-        generate_pot(model=model, parameters=parameters)
+@app.route("/api/health", methods=["GET"])
+def health():
+    return flask.jsonify({"status": "ok"})
 
+
+@app.route("/api/models", methods=["GET"])
+def models():
+    return flask.jsonify(MODEL_PARAMS)
+
+
+class GenerationRequest(pydantic.BaseModel):
+    class Config:
+        """Class to disallow extra attributes in the json"""
+
+        extra = "forbid"
+
+    model: str
+    parameters: t.Dict[str, str]
+
+
+def generate(request: flask.Request, download_link: bool):
+    try:
+        json = request.json
+        req = GenerationRequest(**json)
+        output_path = generate_pot(model=req.model, parameters=req.parameters)
+        output_filename = os.path.basename(output_path)
     except Exception as e:
-        return flask.jsonify(
-            {
-                "status": "fail",
-                "message": str(e),
-            }
+        return (
+            flask.jsonify(
+                {"status": "fail", "message": str(e), "exception": type(e).__name__}
+            ),
+            500,
         )
 
-    return flask.jsonify({"status": "ok"})
+    if download_link:
+        return flask.jsonify(
+            {
+                "link": flask.url_for(
+                    "download", filename=output_filename, _external=True
+                )
+            }
+        )
+    else:
+        return download(filename=output_filename)
+
+
+@app.route("/api/generate_and_send", methods=["POST"])
+def generate_and_send():
+    return generate(flask.request, download_link=False)
+
+
+@app.route("/api/generate_download_link", methods=["POST"])
+def generate_download_link():
+    return generate(flask.request, download_link=True)
 
 
 if __name__ == "__main__":

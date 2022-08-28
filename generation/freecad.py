@@ -16,6 +16,11 @@ logging.basicConfig(
     level=logging.DEBUG,
 )
 
+# Custom Exceptions
+class GenerationException(Exception):
+    pass
+
+
 # Path to the FreeCAD libraries
 # Change this depending on your installation or if you use Windows/Linux
 FREECAD_PATH_LINUX = "/usr/lib/freecad/lib"
@@ -86,7 +91,7 @@ def generate_mesh(
         parameters = {k: v for k, v in parameters.items() if v is not None}
 
         if not set(parameters).issubset(available_parameters):
-            raise Exception(
+            raise GenerationException(
                 f"Recieved the parameters {parameters}, but found only the "
                 f"parameters {available_parameters} exist in the input file."
             )
@@ -105,7 +110,7 @@ def generate_mesh(
         # If the document is still touched, something went wrong with the
         # recompute and there are changes that did not go through
         if doc.isTouched():
-            raise Exception(
+            raise GenerationException(
                 "Could not recompute the document after updating parameters. "
                 f"The recompute operation returned the code {recompute_code}. "
                 f"Make sure that the parameters are valid: {new_parameters}"
