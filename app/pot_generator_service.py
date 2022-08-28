@@ -37,13 +37,13 @@ app = flask.Flask(
 )
 
 
-def initialize_models():
+def initialize_models(cad_model_dir: str = CAD_MODEL_DIR):
     logging.info("Initializing avaiable CAD models")
 
-    logging.info(f"Listing models in {CAD_MODEL_DIR}")
-    for file_name in os.listdir(CAD_MODEL_DIR):
+    logging.info(f"Listing models in {cad_model_dir}")
+    for file_name in os.listdir(cad_model_dir):
         model_name = os.path.splitext(file_name)[0]
-        path = os.path.join(CAD_MODEL_DIR, file_name)
+        path = os.path.join(cad_model_dir, file_name)
         logging.info(f"Found model {model_name} at path {path}")
         logging.info(f"Reading parameters from {path}")
         parameters = freecad.get_parameters(path)
@@ -99,8 +99,14 @@ def download(filename: str):
 
 @app.route("/", methods=["GET"])
 def index():
-    selected_model = MODELS[0]
-    selected_parameters = MODEL_PARAMS[selected_model]
+
+    if MODELS:
+        selected_model = MODELS[0]
+        selected_parameters = MODEL_PARAMS[selected_model]
+    else:
+        selected_model = None
+        selected_parameters = {}
+
     return render(
         selected_model=selected_model,
         selected_parameters=selected_parameters,
@@ -163,7 +169,7 @@ class GenerationRequest(pydantic.BaseModel):
     parameters: t.Dict[str, str]
 
 
-def generate(request: flask.Request, download_link: bool):
+def _generate(request: flask.Request, download_link: bool):
     try:
         json = request.json
         req = GenerationRequest(**json)
@@ -191,12 +197,12 @@ def generate(request: flask.Request, download_link: bool):
 
 @app.route("/api/generate_and_send", methods=["POST"])
 def generate_and_send():
-    return generate(flask.request, download_link=False)
+    return _generate(flask.request, download_link=False)
 
 
 @app.route("/api/generate_download_link", methods=["POST"])
 def generate_download_link():
-    return generate(flask.request, download_link=True)
+    return _generate(flask.request, download_link=True)
 
 
 if __name__ == "__main__":

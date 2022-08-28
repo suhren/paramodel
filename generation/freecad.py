@@ -25,24 +25,31 @@ class GenerationException(Exception):
 # Change this depending on your installation or if you use Windows/Linux
 FREECAD_PATH_LINUX = "/usr/lib/freecad/lib"
 FREECAD_PATH_WINDOWS = "C:/Program Files/FreeCAD 0.20/bin"
+FREECAD_PATH = ""
 
 system = platform.system()
 
 if system == "Linux":
     logging.debug("Loading Linux FreeCAD library")
-    sys.path.append(FREECAD_PATH_LINUX)
+    FREECAD_PATH = FREECAD_PATH_LINUX
 elif system == "Windows":
     logging.debug("Loading Windows FreeCAD library")
-    sys.path.append(FREECAD_PATH_WINDOWS)
+    FREECAD_PATH = FREECAD_PATH_WINDOWS
 else:
     raise Exception(f"Unknown operating system: ''{system}")
 
+sys.path.append(FREECAD_PATH)
 
-import FreeCAD
-import Mesh
+try:
+    import FreeCAD
+    import Mesh
+except ImportError as e:
+    logging.warning(
+        f"Unable to import FreeCAD libraries. "
+        f"Check that the FreeCAD library for {system} exists at {FREECAD_PATH}"
+    )
 
-
-def get_parameters(doc: t.Union[str, FreeCAD.Document]):
+def get_parameters(doc: t.Union[str, "FreeCAD.Document"]):
     if not isinstance(doc, FreeCAD.Document):
         doc = FreeCAD.open(doc)
 
