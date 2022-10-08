@@ -52,6 +52,12 @@
             <br><br>
         {% endif %}
 
+        {% if generated_image is not none %}
+            <img src="{{ generated_image }}" alt="Generated Mesh" height="256px" width="256px">
+            <br><br>
+        {% endif %}
+
+
         <h3>Output</h3>
         <textarea readonly rows="4">{{message}}</textarea>
 

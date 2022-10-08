@@ -27,9 +27,25 @@ preview = true
 minversion = "6.0"
 addopts = "-ra -q"
 testpaths = ["tests"]
-
+markers = [
+    "integration: Integration tests (deselect with '-m \"not integration\"')",
+]
 
 # pylint
 [tool.pylint.basic]
-good-names = ["i", "j", "k", "ex", "Run", "_", "df"]
+good-names = ["i", "j", "k", "ex", "Run", "_", "df", "e"]
 max-line-length = 88
+disable = [
+    # Allow f-string interpolation in logging statements
+    "logging-fstring-interpolation",
+]
+extension-pkg-whitelist = [
+    # Pylint has issues finding the BasecClass of pydantic:
+    # https://github.com/pydantic/pydantic/issues/1961
+    "pydantic",
+]
+# List of members which are set dynamically and missed by pylint inference
+# system, and so shouldn't trigger E0201 when accessed.
+generated-members=[
+    "FreeCAD",
+]

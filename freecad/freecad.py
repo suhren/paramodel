@@ -1,14 +1,16 @@
 # https://freecad-python-stubs.readthedocs.io/en/latest/
 
-import re
-import sys
+import argparse
 import json
 import logging
-import textwrap
-import argparse
+import os
 import platform
+import re
+import shutil
+import sys
+import tempfile
+import textwrap
 import typing as t
-
 
 logging.basicConfig(
     format="%(asctime)s %(message)s",
@@ -17,7 +19,7 @@ logging.basicConfig(
 )
 
 # Custom Exceptions
-class GenerationException(Exception):
+class MeshGenerationException(Exception):
     pass
 
 
@@ -27,16 +29,16 @@ FREECAD_PATH_LINUX = "/usr/lib/freecad/lib"
 FREECAD_PATH_WINDOWS = "C:/Program Files/FreeCAD 0.20/bin"
 FREECAD_PATH = ""
 
-system = platform.system()
+SYSTEM = platform.system()
 
-if system == "Linux":
+if SYSTEM == "Linux":
     logging.debug("Loading Linux FreeCAD library")
     FREECAD_PATH = FREECAD_PATH_LINUX
-elif system == "Windows":
+elif SYSTEM == "Windows":
     logging.debug("Loading Windows FreeCAD library")
     FREECAD_PATH = FREECAD_PATH_WINDOWS
 else:
-    raise Exception(f"Unknown operating system: ''{system}")
+    raise Exception(f"Unknown operating system: ''{SYSTEM}")
 
 sys.path.append(FREECAD_PATH)
 
@@ -45,9 +47,10 @@ try:
     import Mesh
 except ImportError as e:
     logging.warning(
-        f"Unable to import FreeCAD libraries. "
-        f"Check that the FreeCAD library for {system} exists at {FREECAD_PATH}"
+        "Unable to import FreeCAD libraries. "
+        f"Check that the FreeCAD library for {SYSTEM} exists at {FREECAD_PATH}"
     )
+
 
 def get_parameters(doc: t.Union[str, "FreeCAD.Document"]):
     if not isinstance(doc, FreeCAD.Document):
@@ -79,61 +82,74 @@ def generate_mesh(
     :param parameters: A dictionary of parameters to set in the file
     """
 
-    logging.debug(f"Opening FreeCAD file at {input_path}")
-    doc = FreeCAD.open(input_path)
+    with tempfile.TemporaryDirectory() as tempdir:
 
-    logging.debug("Getting objects from document")
-    obj = doc.getObject("Body")
-    sheet = doc.getObject("Spreadsheet")
+        # FreeCAD will modify the file inplace if we change parameters in it
+        # We don't want to modify the actual template file, so we copy it to a
+        # temporary location and use that file instead.
+        input_path = os.path.abspath(input_path)
+        input_file_name = os.path.basename(input_path)
+        temp_path = os.path.join(tempdir, input_file_name)
 
-    # Messy "hack" to get the available aliases in the Spreadsheet?
-    # Might there be a better way?
-    available_parameters = get_parameters(doc=doc)
+        logging.debug(f"Copying FreeCAD file at {input_path} to {temp_path}")
+        shutil.copyfile(input_path, temp_path)
 
-    logging.debug(f"Found default parameters {available_parameters}")
+        logging.debug(f"Opening {temp_path}")
+        doc = FreeCAD.open(temp_path)
 
-    # Set the parameters if specified
-    if parameters:
-        # Filter out None values
-        parameters = {k: v for k, v in parameters.items() if v is not None}
+        logging.debug("Getting objects from document")
+        obj = doc.getObject("Body")
+        sheet = doc.getObject("Spreadsheet")
 
-        if not set(parameters).issubset(available_parameters):
-            raise GenerationException(
-                f"Recieved the parameters {parameters}, but found only the "
-                f"parameters {available_parameters} exist in the input file."
-            )
+        # Messy "hack" to get the available aliases in the Spreadsheet?
+        # Might there be a better way?
+        available_parameters = get_parameters(doc=doc)
+        logging.debug(f"Found default parameters {available_parameters}")
 
-        # The spreadsheet object only accepts string values
-        parameters = {k: str(v) for k, v in parameters.items()}
+        # Set the parameters if specified
+        if parameters:
+            # Filter out None values
+            parameters = {k: v for k, v in parameters.items() if v is not None}
 
-        logging.debug(f"Setting parameter values {parameters}")
-        for parameter_name, value in parameters.items():
-            sheet.set(parameter_name, value)
+            if not set(parameters).issubset(available_parameters):
+                raise MeshGenerationException(
+                    f"Recieved the parameters {parameters}, but found only the "
+                    f"parameters {available_parameters} exist in the input file."
+                )
 
-        new_parameters = {**available_parameters, **parameters}
-        logging.debug(f"Recomputing  with updated parameters {new_parameters}")
+            # The spreadsheet object only accepts string values
+            parameters = {k: str(v) for k, v in parameters.items()}
 
-        recompute_code = doc.recompute()
-        # If the document is still touched, something went wrong with the
-        # recompute and there are changes that did not go through
-        if doc.isTouched():
-            raise GenerationException(
-                "Could not recompute the document after updating parameters. "
-                f"The recompute operation returned the code {recompute_code}. "
-                f"Make sure that the parameters are valid: {new_parameters}"
-            )
-    else:
-        logging.debug(f"No parameters specified, using default found in file")
+            logging.debug(f"Setting parameter values {parameters}")
+            for parameter_name, value in parameters.items():
+                sheet.set(parameter_name, value)
 
-    # Export the mesh as the specified file type
-    logging.debug(f"Exporting mesh to {output_path}")
-    Mesh.export([obj], output_path)
+            new_parameters = {**available_parameters, **parameters}
+            logging.debug(f"Recomputing with updated parameters {new_parameters}")
+
+            recompute_code = doc.recompute()
+            # If the document is still touched, something went wrong with the
+            # recompute and there are changes that did not go through
+            if doc.isTouched():
+                raise MeshGenerationException(
+                    "Could not recompute the document after updating parameters. "
+                    f"The recompute operation returned the code {recompute_code}. "
+                    f"Make sure that the parameters are valid: {new_parameters}"
+                )
+        else:
+            logging.debug("No parameters specified, using default found in file")
+
+        # Export the mesh as the specified file type
+        logging.debug(f"Exporting mesh to {output_path}")
+        Mesh.export([obj], output_path)
 
 
 if __name__ == "__main__":
+    file_name = os.path.basename(__file__)
+
     parser = argparse.ArgumentParser(
         description=textwrap.dedent(
-            """\
+            f"""\
             Automatic FreeCAD model parametrizer and exporter
 
             This program can automatically perform the following steps:
@@ -146,14 +162,14 @@ if __name__ == "__main__":
             single CAD file by overriding parameters (aliases) provided through
             this program. For example, a CAD file might define a model of a cup
             with some diameter and height specified in its corresponding
-            Spreadsheet object as "cup_diameter" and "cup_height". This program
+            Spreadsheet object as "diameter" and "height". This program
             can then be run as follows to generate diffent variants of the cup:
 
             Cup with diameter 100 mm and height 60 mm:
-            main.py <cup.FCStd> <mesh1.stl> -p '{"cup_diameter": 100, "cup_height": 60}'
+            {file_name} <cup.FCStd> <mesh1.stl> -p '{"diameter": 100, "height": 60}'
 
             Cup with diameter 80 mm and height set to exiting dimension in model:
-            main.py <cup.FCStd> <mesh2.stl> -p '{"cup_diameter": 80}'
+            {file_name} <cup.FCStd> <mesh2.stl> -p '{"diameter": 80}'
             """
         ),
         formatter_class=argparse.RawTextHelpFormatter,
