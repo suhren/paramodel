@@ -1,0 +1,11 @@
+pytest
+pytest-cov # For test coverage
+pytest-mock
+Flask
+pydantic
+requests
+black
+# FreeCAD
+# Mesh
+numpy-stl
+imageio

@@ -83,7 +83,6 @@ def generate_mesh(
     """
 
     with tempfile.TemporaryDirectory() as tempdir:
-
         # FreeCAD will modify the file inplace if we change parameters in it
         # We don't want to modify the actual template file, so we copy it to a
         # temporary location and use that file instead.
