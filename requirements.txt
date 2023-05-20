@@ -5,7 +5,5 @@ Flask
 pydantic
 requests
 black
-# FreeCAD
-# Mesh
-numpy-stl
+numpy-stl # Used in tests to open STL files
 imageio

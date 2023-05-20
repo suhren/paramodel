@@ -18,6 +18,7 @@ logging.basicConfig(
     level=logging.DEBUG,
 )
 
+
 # Custom Exceptions
 class MeshGenerationException(Exception):
     pass
@@ -52,6 +53,7 @@ sys.path.append(FREECAD_PATH)
 # https://forum.freecadweb.org/viewtopic.php?t=27740
 try:
     import FreeCAD
+
     logging.debug(f"Loaded FreeCAD version {FreeCAD.Version()}")
     import Mesh
 except ImportError as e:
@@ -112,9 +114,8 @@ def generate_mesh(
         logging.debug("Getting Body and Spreadsheet objects from document")
         bodies = []
         sheets = []
-        
+
         for obj in doc.Objects:
-            
             if obj.TypeId == BODY_TYPE_ID and obj.isElementVisible:
                 bodies.append(obj)
 
@@ -125,12 +126,13 @@ def generate_mesh(
             raise MeshGenerationException(
                 f"Could not find any objects of the type {BODY_TYPE_ID} in the document"
             )
-        
+
         if not sheets:
             raise MeshGenerationException(
-                f"Could not find any objects of the type {SHEET_TYPE_ID} in the document"
+                f"Could not find any objects of the type {SHEET_TYPE_ID} in the"
+                " document"
             )
-        
+
         sheet = sheets[0]
 
         # Messy "hack" to get the available aliases in the Spreadsheet?
@@ -180,8 +182,7 @@ if __name__ == "__main__":
     file_name = os.path.basename(__file__)
 
     parser = argparse.ArgumentParser(
-        description=textwrap.dedent(
-            f"""\
+        description=textwrap.dedent(f"""\
             Automatic FreeCAD model parametrizer and exporter
 
             This program can automatically perform the following steps:
@@ -202,34 +203,29 @@ if __name__ == "__main__":
 
             Cup with diameter 80 mm and height set to exiting dimension in model:
             {file_name} <cup.FCStd> <mesh2.stl> -p '{{"diameter": 80}}'
-            """
-        ),
+            """),
         formatter_class=argparse.RawTextHelpFormatter,
     )
 
     parser.add_argument(
         "input_path",
         type=str,
-        help=textwrap.dedent(
-            """\
+        help=textwrap.dedent("""\
             Path to the FreeCAD .FCStd file defining the model.
             The file is required to have the following objects:
             - Spreadsheet object with parametric dimensions with aliases
             - Body object with the Part referencing the aliases
-            """
-        ),
+            """),
     )
 
     parser.add_argument(
         "output_path",
         type=str,
-        help=textwrap.dedent(
-            """\
+        help=textwrap.dedent("""\
             Output path to the generated mesh file.
             The file ending determines the type of mesh, like .stl or .3mf.
             See the FreeCAD documentation for available output file types.
-            """
-        ),
+            """),
     )
 
     parser.add_argument(
@@ -237,13 +233,11 @@ if __name__ == "__main__":
         "--parameters",
         type=json.loads,
         required=False,
-        help=textwrap.dedent(
-            """\
+        help=textwrap.dedent("""\
             JSON string used to override existing Spreadsheet parameters.
             The string should be formatted as a JSON string like
             '{\"key1\": value1, \"key2\": value2}'.
-            """
-        ),
+            """),
     )
 
     args = parser.parse_args()

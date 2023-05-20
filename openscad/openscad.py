@@ -101,8 +101,7 @@ if __name__ == "__main__":
     file_name = os.path.basename(__file__)
 
     parser = argparse.ArgumentParser(
-        description=textwrap.dedent(
-            f"""\
+        description=textwrap.dedent(f"""\
             Automatic OpenSCAD STL image-renderer utility.
 
             This program calls OpenSCAD to import STL files to generate PNG
@@ -110,8 +109,7 @@ if __name__ == "__main__":
 
             Example usage:
             {file_name} <my_model.stl> <my_image.png> --size 128,128
-            """
-        ),
+            """),
         formatter_class=argparse.RawTextHelpFormatter,
     )
 

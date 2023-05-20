@@ -56,10 +56,10 @@ def initialize_models(cad_model_dir: str = CAD_MODEL_DIR):
     logging.info(f"Listing models in {cad_model_dir}")
     for file_name in os.listdir(cad_model_dir):
         model_name, file_type = os.path.splitext(file_name)
-        
+
         if file_type != ".FCStd":
             continue
-        
+
         path = os.path.join(cad_model_dir, file_name)
         logging.info(f"Found model {model_name} at path {path}")
         logging.info(f"Reading parameters from {path}")
