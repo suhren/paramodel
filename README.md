@@ -20,6 +20,9 @@ First, make sure you have [Docker](https://www.docker.com/) installed on your sy
 ```bash
 docker build -t paramodel .
 docker run -dp 80:80 paramodel
+# View the running containers and logs
+docker container ls -a
+docker logs -f <container_id>
 ```
 
 Then navigate to `127.0.0.1` or `localhost` in your browser to access the model generator interface.
