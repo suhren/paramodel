@@ -3,7 +3,7 @@
 
 <head>
     <title>Generate parametric models</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/pot_generator_service.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/model_generator_service.css') }}">
 </head>
 
 <body>
@@ -16,11 +16,11 @@
             <label for="select_models">Model:</label>
             <select name="select_models" id="select_models">
                 {% for model in available_models %}
-                    {% if model == selected_model %}
-                        <option value="{{model}}" selected>{{model}}</option>
-                    {% else %}
-                        <option value="{{model}}">{{model}}</option>
-                    {% endif %}
+                {% if model == selected_model %}
+                <option value="{{model}}" selected>{{model}}</option>
+                {% else %}
+                <option value="{{model}}">{{model}}</option>
+                {% endif %}
                 {% endfor %}
             </select>
             <br>
@@ -36,9 +36,9 @@
             <input type="hidden" name="selected_model" value="{{selected_model}}" readonly>
 
             {% for k, v in selected_parameters.items() %}
-                <label for="{{k}}">{{k}}:</label>
-                <input type="text" name="{{k}}" id="{{k}}" value="{{v}}">
-                <br>
+            <label for="{{k}}">{{k}}:</label>
+            <input type="text" name="{{k}}" id="{{k}}" value="{{v}}">
+            <br>
             {% endfor %}
 
             <input type="submit" value="Generate {{selected_model}}">
@@ -47,14 +47,14 @@
         <br>
 
         {% if download_link is not none %}
-            <h3>Download</h3>
-            <a href="{{download_link}}">{{download_text}}</a>
-            <br><br>
+        <h3>Download</h3>
+        <a href="{{download_link}}">{{download_text}}</a>
+        <br><br>
         {% endif %}
 
         {% if generated_image is not none %}
-            <img src="{{ generated_image }}" alt="Generated Mesh" height="256px" width="256px">
-            <br><br>
+        <img src="{{ generated_image }}" alt="Generated Mesh" height="256px" width="256px">
+        <br><br>
         {% endif %}
 
 

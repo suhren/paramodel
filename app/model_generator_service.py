@@ -55,7 +55,11 @@ def initialize_models(cad_model_dir: str = CAD_MODEL_DIR):
 
     logging.info(f"Listing models in {cad_model_dir}")
     for file_name in os.listdir(cad_model_dir):
-        model_name = os.path.splitext(file_name)[0]
+        model_name, file_type = os.path.splitext(file_name)
+        
+        if file_type != ".FCStd":
+            continue
+        
         path = os.path.join(cad_model_dir, file_name)
         logging.info(f"Found model {model_name} at path {path}")
         logging.info(f"Reading parameters from {path}")
@@ -67,7 +71,7 @@ def initialize_models(cad_model_dir: str = CAD_MODEL_DIR):
     logging.info(f"Done initializing {len(MODELS)} models: {MODELS}")
 
 
-def generate_pot(model: str, parameters: dict):
+def generate_model(model: str, parameters: dict):
     """
     Generate a STL mesh from a model with the given parameters.
     :param model: The name of the model
@@ -78,7 +82,6 @@ def generate_pot(model: str, parameters: dict):
 
     param_str = json.dumps(parameters, sort_keys=True).encode()
     param_hash = hashlib.sha256(param_str).hexdigest()[:8]
-    logging.info(param_hash)
 
     output_path = f"{OUTPUT_DIR}/{model}_{param_hash}.stl"
 
@@ -102,7 +105,7 @@ def _render(**kwargs: t.Any):
         message="",
     )
     variables.update(kwargs)
-    return flask.render_template("pot_generator_service.html", **variables)
+    return flask.render_template("model_generator_service.html", **variables)
 
 
 @app.route("/", methods=["GET"])
@@ -152,21 +155,20 @@ def submit_parameters():
 
     logging.info(f"Recieved request to generate {model} with parameters {parameters}")
 
-    assert model in MODELS
-
     try:
-        output_path = generate_pot(model=model, parameters=parameters)
+        assert model in MODELS
+        output_path = generate_model(model=model, parameters=parameters)
         output_filename = os.path.basename(output_path)
         output_image_filename = f"{os.path.splitext(output_filename)[0]}.png"
         output_image_path = f"{OUTPUT_DIR}/{output_image_filename}"
         generated_image = flask.url_for("download", filename=output_image_filename)
+        output_filename = os.path.basename(output_path)
+        download_link = f"api/download/{output_filename}"
+        download_text = output_filename
         openscad.generate_image(
             input_path=output_path,
             output_path=output_image_path,
         )
-        output_filename = os.path.basename(output_path)
-        download_link = f"api/download/{output_filename}"
-        download_text = output_filename
     except Exception as e:
         message = str(e)
 
@@ -227,7 +229,7 @@ def _generate(request: flask.Request, download_link: bool):
     # pylint: disable=broad-except
     try:
         req = GenerationRequest(**request.json)
-        output_path = generate_pot(model=req.model, parameters=req.parameters)
+        output_path = generate_model(model=req.model, parameters=req.parameters)
         output_filename = os.path.basename(output_path)
     except Exception as e:
         return (

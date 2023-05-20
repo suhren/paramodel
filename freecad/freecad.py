@@ -23,6 +23,9 @@ class MeshGenerationException(Exception):
     pass
 
 
+# To import FreeCAD as a Python module, refer to the following documentation:
+# https://wiki.freecad.org/Embedding_FreeCAD
+
 # Path to the FreeCAD libraries
 # Change this depending on your installation or if you use Windows/Linux
 FREECAD_PATH_LINUX = "/usr/lib/freecad/lib"
@@ -30,30 +33,37 @@ FREECAD_PATH_WINDOWS = "C:/Program Files/FreeCAD 0.20/bin"
 FREECAD_PATH = ""
 
 SYSTEM = platform.system()
+logging.debug(f"Identified python version {sys.version}")
+logging.debug(f"Identified platform {platform.platform()}")
 
 if SYSTEM == "Linux":
-    logging.debug("Loading Linux FreeCAD library")
     FREECAD_PATH = FREECAD_PATH_LINUX
 elif SYSTEM == "Windows":
-    logging.debug("Loading Windows FreeCAD library")
     FREECAD_PATH = FREECAD_PATH_WINDOWS
 else:
-    raise Exception(f"Unknown operating system: ''{SYSTEM}")
+    raise Exception(f"Unknown operating system: {SYSTEM}")
 
+logging.debug(f"Loading FreeCAD library from {FREECAD_PATH}")
 sys.path.append(FREECAD_PATH)
 
+# When trying to import only the Part module directly, we can get the error:
+# DLL load failed while importing Part: The specified module could not be found.
+# The solution to this is to import the FreeCAD module first:
+# https://forum.freecadweb.org/viewtopic.php?t=27740
 try:
     import FreeCAD
+    logging.debug(f"Loaded FreeCAD version {FreeCAD.Version()}")
     import Mesh
 except ImportError as e:
     logging.warning(
         "Unable to import FreeCAD libraries. "
         f"Check that the FreeCAD library for {SYSTEM} exists at {FREECAD_PATH}"
+        f"\nThe following exception was raised:\n{e}"
     )
 
 
 def get_parameters(doc: t.Union[str, "FreeCAD.Document"]):
-    if not isinstance(doc, FreeCAD.Document):
+    if isinstance(doc, str):
         doc = FreeCAD.open(doc)
 
     sheet = doc.getObject("Spreadsheet")
@@ -96,9 +106,32 @@ def generate_mesh(
         logging.debug(f"Opening {temp_path}")
         doc = FreeCAD.open(temp_path)
 
-        logging.debug("Getting objects from document")
-        obj = doc.getObject("Body")
-        sheet = doc.getObject("Spreadsheet")
+        BODY_TYPE_ID = "PartDesign::Body"
+        SHEET_TYPE_ID = "Spreadsheet::Sheet"
+
+        logging.debug("Getting Body and Spreadsheet objects from document")
+        bodies = []
+        sheets = []
+        
+        for obj in doc.Objects:
+            
+            if obj.TypeId == BODY_TYPE_ID and obj.isElementVisible:
+                bodies.append(obj)
+
+            elif obj.TypeId == SHEET_TYPE_ID:
+                sheets.append(obj)
+
+        if not bodies:
+            raise MeshGenerationException(
+                f"Could not find any objects of the type {BODY_TYPE_ID} in the document"
+            )
+        
+        if not sheets:
+            raise MeshGenerationException(
+                f"Could not find any objects of the type {SHEET_TYPE_ID} in the document"
+            )
+        
+        sheet = sheets[0]
 
         # Messy "hack" to get the available aliases in the Spreadsheet?
         # Might there be a better way?
@@ -140,7 +173,7 @@ def generate_mesh(
 
         # Export the mesh as the specified file type
         logging.debug(f"Exporting mesh to {output_path}")
-        Mesh.export([obj], output_path)
+        Mesh.export(bodies, output_path)
 
 
 if __name__ == "__main__":
@@ -165,10 +198,10 @@ if __name__ == "__main__":
             can then be run as follows to generate diffent variants of the cup:
 
             Cup with diameter 100 mm and height 60 mm:
-            {file_name} <cup.FCStd> <mesh1.stl> -p '{"diameter": 100, "height": 60}'
+            {file_name} <cup.FCStd> <mesh1.stl> -p '{{"diameter": 100, "height": 60}}'
 
             Cup with diameter 80 mm and height set to exiting dimension in model:
-            {file_name} <cup.FCStd> <mesh2.stl> -p '{"diameter": 80}'
+            {file_name} <cup.FCStd> <mesh2.stl> -p '{{"diameter": 80}}'
             """
         ),
         formatter_class=argparse.RawTextHelpFormatter,

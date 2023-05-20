@@ -13,7 +13,7 @@ logging.basicConfig(
     level=logging.DEBUG,
 )
 
-OPENSCAD_PATH_LINUX = ""
+OPENSCAD_PATH_LINUX = "/usr/bin/openscad"
 OPENSCAD_PATH_WINDOWS = "C:/Program Files/OpenSCAD/openscad.exe"
 OPENSCAD_PATH = OPENSCAD_PATH_WINDOWS
 
@@ -21,6 +21,14 @@ SYSTEM = platform.system()
 
 if SYSTEM == "Linux":
     OPENSCAD_PATH = OPENSCAD_PATH_LINUX
+    if os.environ.get("DISPLAY") is None:
+        logging.warning(
+            "Environment variable $DISPLAY is not set. "
+            "This will cause OpenSCAD to fail when attempting to run. "
+            "If you are running in a headless environment, consider using "
+            "a virtual framebuffer program like Xvnc or Xvfb. "
+            "https://github.com/openscad/openscad/blob/master/doc/testing.txt"
+        )
 elif SYSTEM == "Windows":
     OPENSCAD_PATH = OPENSCAD_PATH_WINDOWS
 else:

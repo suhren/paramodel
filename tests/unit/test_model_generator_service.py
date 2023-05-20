@@ -3,7 +3,7 @@ import os
 import re
 
 import pytest
-from app import pot_generator_service
+from app import model_generator_service
 
 
 class MockModel:
@@ -34,10 +34,10 @@ def fixture_test_client(tmpdir, mocker):
     - set up a temporary directory where output dummy mesh files will be saved
     """
 
-    pot_generator_service.OUTPUT_DIR = tmpdir
-    pot_generator_service.MODELS = [MockModel.name]
-    pot_generator_service.MODEL_PATHS = {MockModel.name: MockModel.cad_path}
-    pot_generator_service.MODEL_PARAMS = {MockModel.name: MockModel.parameters}
+    model_generator_service.OUTPUT_DIR = tmpdir
+    model_generator_service.MODELS = [MockModel.name]
+    model_generator_service.MODEL_PATHS = {MockModel.name: MockModel.cad_path}
+    model_generator_service.MODEL_PARAMS = {MockModel.name: MockModel.parameters}
 
     def _generate_mesh(input_path, output_path, parameters):
         with open(output_path, "w", encoding="utf-8") as file:
@@ -52,7 +52,7 @@ def fixture_test_client(tmpdir, mocker):
     mocker.patch("openscad.openscad.generate_image", side_effect=_generate_image)
 
     # Create a test client using the Flask application configured for testing
-    with pot_generator_service.app.test_client() as testing_client:
+    with model_generator_service.app.test_client() as testing_client:
         yield testing_client
 
 
@@ -135,7 +135,7 @@ def test_api_generate_download_link(test_client):
     # Check that the filename is the name of the model followed by a hex string
     assert re.match(f"{MockModel.name}_[a-fA-F0-9]+.stl", file_name)
 
-    generated_file_path = os.path.join(pot_generator_service.OUTPUT_DIR, file_name)
+    generated_file_path = os.path.join(model_generator_service.OUTPUT_DIR, file_name)
 
     assert os.path.exists(generated_file_path)
 
